@@ -1,0 +1,31 @@
+{
+  "name": "reschedule",
+  "version": "0.1.0",
+  "description": "\"A job / event scheduler for both one-time and recurring (RRULE-based) events\"",
+  "main": "reschedule",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:coolaj86/node-reschedule.git"
+  },
+  "keywords": [
+    "periodic",
+    "schedule",
+    "reschedule",
+    "rrule",
+    "recur",
+    "rrecur",
+    "recurring",
+    "event",
+    "job",
+    "task"
+  ],
+  "author": "AJ ONeal <coolaj86@gmail.com> (http://coolaj86.com/)",
+  "license": "Apache2",
+  "bugs": {
+    "url": "https://github.com/coolaj86/node-reschedule/issues"
+  },
+  "homepage": "https://github.com/coolaj86/node-reschedule"
+}
