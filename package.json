@@ -11,6 +11,7 @@
     "url": "git@github.com:coolaj86/node-reschedule.git"
   },
   "keywords": [
+    "appointment",
     "periodic",
     "schedule",
     "reschedule",
@@ -27,5 +28,15 @@
   "bugs": {
     "url": "https://github.com/coolaj86/node-reschedule/issues"
   },
-  "homepage": "https://github.com/coolaj86/node-reschedule"
+  "homepage": "https://github.com/coolaj86/node-reschedule",
+  "dependencies": {
+    "bookshelf": "^0.7.2",
+    "foreachasync": "^3.0.0",
+    "knex": "^0.6.15",
+    "lodash": "^2.4.1",
+    "moment": "^2.7.0",
+    "rrecur": "^1.0.3",
+    "sqlite3": "^2.2.3",
+    "underscore.string": "^2.3.3"
+  }
 }
