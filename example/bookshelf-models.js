@@ -57,8 +57,6 @@ function inflateXattrs(xattrKey, keys) {
 }
 
 function zipXattrs(xattrKey, keys, emulate) {
-  console.log('zipkeys');
-  console.log(keys);
   return function (attrs) {
     var xattrs = {}
       ;
@@ -81,8 +79,6 @@ function zipXattrs(xattrKey, keys, emulate) {
     }
 
     attrs = toSnakeCase(attrs);
-    console.log('zipXattrs');
-    console.log(attrs);
     return attrs;
   };
 }
@@ -92,7 +88,7 @@ function init(knex, schedColumns, apptColumns) {
     , Db = {}
     ;
 
-  console.log(schedColumns);
+  //console.log(schedColumns);
   Db.Schedules = Orm.Model.extend({
     tableName: 'schedules'
   , idAttribute: 'id'
@@ -167,9 +163,6 @@ function check(knex) {
     }
 
     return knex('appointments').columnInfo().then(function (apptColumns) {
-      //console.log('schedColumns');
-      //console.log(schedColumns);
-      console.log(Object.keys(schedColumns));
       return init(
         knex
       , schedColumns

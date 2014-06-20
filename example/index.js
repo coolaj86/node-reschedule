@@ -154,16 +154,14 @@ p._loadAppointment = function (appt) {
         schedule.set('next', next);
 
         if (next) {
-          console.log('TODO: update this appt as the next');
+          // TODO could maybe keep appt history, but recycling instead for now
           appt.set('next', next);
-          appt.save();
           // TODO some time delta appt.set('until', );
+          appt.save();
         } else {
           appt.destroy();
           schedule.set('next', null);
           schedule.save();
-          console.log('TODO: delete this appointment');
-          console.log('TODO: delete the schedule');
         }
       });
     });
