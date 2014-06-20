@@ -37,10 +37,12 @@ function inflateXattrs(xattrKey, keys) {
       , keys = Object.keys(attrs)
       ;
 
-    if ('string' === typeof xattrs && -1 !== ['"','{','[','n','t','f','1','2','3','4','5','6','7','8','9'].indexOf(xattrs[0])) {
-      xattrs = JSON.parse(xattrs);
-    } else {
-      console.warning("WARNING: Don't store strings in a json field");
+    if ('string' === typeof xattrs) {
+      if (-1 !== ['"','{','[','n','t','f','1','2','3','4','5','6','7','8','9'].indexOf(xattrs[0])) {
+        xattrs = JSON.parse(xattrs);
+      } else {
+        console.warn("WARNING: Don't store strings in a json field");
+      }
     }
     delete attrs[xattrKey];
 
@@ -102,6 +104,19 @@ function init(knex, schedColumns, apptColumns) {
       } else {
         attrs = zipXattrs('xattrs', toCamelCaseArr(Object.keys(schedColumns)), 'json')(attrs);
       }
+      Object.keys(schedColumns).forEach(function (key) {
+        if ('datetime' === schedColumns[key].type) {
+          if (!attrs[key]) {
+            return;
+          }
+          if ('number' === typeof attrs[key]) {
+            attrs[key] = new Date(attrs[key]).toISOString();
+          }
+          if ('object' === typeof attrs[key]) {
+            attrs[key] = attrs[key].toISOString();
+          }
+        }
+      });
       if ('text' === schedColumns.event.type) {
         attrs.event = JSON.stringify(attrs.event);
       }
@@ -118,7 +133,6 @@ function init(knex, schedColumns, apptColumns) {
       if ('text' === schedColumns.event.type) {
         attrs.event = JSON.parse(attrs.event);
       }
-      attrs.xattrs = attrs.xattrs || {};
       return attrs;
     }
   });
@@ -128,7 +142,7 @@ function init(knex, schedColumns, apptColumns) {
   , idAttribute: 'id'
   , hasTimestamps: ['createdAt', 'updatedAt']
   , schedule: function () {
-      this.belongsTo(Db.Schedules, 'schedule_id');
+      return this.belongsTo(Db.Schedules, 'schedule_id');
     }
   , format: zipXattrs('xattrs', toCamelCaseArr(Object.keys(apptColumns)))
   , parse: inflateXattrs('xattrs')

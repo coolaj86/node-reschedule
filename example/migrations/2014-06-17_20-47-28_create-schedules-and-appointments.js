@@ -10,10 +10,10 @@ module.exports = knex.schema.createTable('schedules', function (t) {
 
   t.timestamp('dtstart', true).notNullable();
   t.text('rrule').notNullable();
-  t.string('until').nullable();
+  t.timestamp('until').nullable();
 
-  t.string('previous').nullable();
-  t.string('next').nullable();
+  t.timestamp('previous').nullable();
+  t.timestamp('next').nullable();
 
   t.json('event').notNullable();
   t.json('xattrs').notNullable().defaultTo(knex.raw("'{}'"));
@@ -27,8 +27,8 @@ module.exports = knex.schema.createTable('schedules', function (t) {
     //t.string('schedule_id', 255).notNullable().references('id').inTable('schedules');
     t.integer('schedule_id').notNullable().references('id').inTable('schedules');
 
-    t.string('next').notNullable();
-    t.string('until').notNullable();
+    t.timestamp('next').notNullable();
+    t.timestamp('until').notNullable();
 
     t.timestamps();
   });

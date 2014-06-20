@@ -14,9 +14,12 @@ reschedule.create().then(function (Reschedule) {
 
   Reschedule.schedule(
     { type: "log" }
-  , Date.now() + (2 * 60 * 1000)
-  , { until: Date.now() + (5 * 60 * 1000) }
+  , Date.now() + (5 * 1000)
+  , { until: Date.now() + (5 * 60 * 1000), timeout: (5 * 60 * 1000) }
   ).then(function () {
     console.log('Created a schedule');
+  }, function (err) {
+    console.error('Failed to create a schedule');
+    console.error(err);
   });
 });

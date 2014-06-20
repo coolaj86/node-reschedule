@@ -10,6 +10,17 @@ var knex = require('./knex-connector').knex
   , p
   ;
 
+function getNext(sched) {
+  var rrule
+    , rrecur
+    ;
+
+  rrule = Rrecur.parse(sched.get('rrule'));
+  rrule.dtstart = sched.get('dtstart');
+  rrecur = Rrecur.create(rrule);
+  return rrecur.next();
+}
+
 function Rescheduler(Db, opts) {
   opts = opts || {};
 
@@ -21,6 +32,7 @@ function Rescheduler(Db, opts) {
   }
   EventEmitter.call(me);
 
+  me._timers = {};
   me._opts = opts;
   // TODO check every 14 minutes for the next 15 minutes
   me._opts.interval = me._opts.interval || 15 * 60 * 1000;
@@ -82,12 +94,11 @@ p._load = function () {
     }
   });
 };
-p._createAppointments = function (schedule) {
+p._createAppointments = function (schedule, appt) {
   var me = this
     , json = schedule.toJSON()
     , rrecur
     , next
-    , appt
     ;
 
   json.rrule = Rrecur.parse(json.rrule);
@@ -95,11 +106,15 @@ p._createAppointments = function (schedule) {
   rrecur = Rrecur.create(json.rrule);
   next = rrecur.next();
 
-  appt = me._Models.Appointments.forge();
+  if (!next) {
+    console.error('nothing next');
+  }
+
+  appt = appt || me._Models.Appointments.forge();
   appt.set('next', next);
   appt.set('until', json.rrule.until);
-  //appt.related('schedule').attach(schedule);
   appt.set('scheduleId', schedule.id);
+  //appt.attach(schedule);
 
   return appt.save().then(function () {
     if ((Date.now() - next.valueOf()) < me._opts.interval) {
@@ -112,6 +127,7 @@ p._createAppointments = function (schedule) {
 };
 p._loadAppointment = function (appt) {
   var me = this
+    , apptId = appt.get('id')
     ;
 
   if (Date.now() < appt.get('until').valueOf()) {
@@ -119,14 +135,42 @@ p._loadAppointment = function (appt) {
     return;
   }
 
-  setTimeout(function () {
+  if (me._timers[appt.get('id')]) {
+    return;
+  }
+
+  me._timers[appt.get('id')] = true;
+
+  function emitEvent() {
     console.log('TODO: load the next appointment for this schedule (or delete it)');
-    me.emit('appointment', appt.related('schedule').get('event'), appt, function () {
-      console.log('TODO: delete this appointment');
-      console.log('TODO: check the schedule for the next appt, or delete it as well');
+    me._Models.Appointments.forge({ id: apptId }).fetch({ withRelated: ['schedule'] }).then(function (appt) {
+      var schedule = appt.related('schedule')
+        , next = getNext(appt.related('schedule'))
+        ;
+
+      me.emit('appointment', appt.related('schedule').get('event'), appt, function () {
+        delete me._timers[appt.get('id')];
+        schedule.set('previous', appt.get('next'));
+        schedule.set('next', next);
+
+        if (next) {
+          console.log('TODO: update this appt as the next');
+          appt.set('next', next);
+          appt.save();
+          // TODO some time delta appt.set('until', );
+        } else {
+          appt.destroy();
+          schedule.set('next', null);
+          schedule.save();
+          console.log('TODO: delete this appointment');
+          console.log('TODO: delete the schedule');
+        }
+      });
     });
-  }, appt.get('next') - Date.now());
+  }
+  setTimeout(emitEvent, appt.get('next') - Date.now());
 };
+
 p.schedule = function (event, first, rrule) {
   var me = this
     , schedule
@@ -147,6 +191,7 @@ p.schedule = function (event, first, rrule) {
     schedule.previous = null;
     schedule.next = first;
     schedule.until = rrule.until;
+    // staletime instead of until
   }
 
   console.log('schedule');
@@ -167,19 +212,14 @@ p.schedule = function (event, first, rrule) {
     console.error(err);
   });
 };
-p.postpone = function (id, date) {
-  return this._Models.Schedules.forge({ id: id }).fetch().then(function (schedule) {
-    return schedule.set('postpone', date).save();
-  });
-};
 p.pause = function (id) {
   return this._Models.Schedules.forge({ id: id }).fetch().then(function (schedule) {
-    return schedule.set('active', false).save();
+    return schedule.set('next', null).save();
   });
 };
 p.resume = function (id) {
   return this._Models.Schedules.forge({ id: id }).fetch().then(function (schedule) {
-    return schedule.set('active', true).save();
+    return schedule.set('next', getNext(schedule)).save();
   });
 };
 p.unschedule = function (id) {
@@ -191,6 +231,13 @@ p.unschedule = function (id) {
     });
   });
 };
+/*
+p.postpone = function (id, date) {
+  return this._Models.Schedules.forge({ id: id }).fetch().then(function (schedule) {
+    return schedule.set('postpone', date).save();
+  });
+};
+*/
 
 module.exports.create = function () {
   return Models.create(knex).then(function (Db) {
