@@ -86,6 +86,7 @@ function zipXattrs(xattrKey, keys, emulate) {
 function init(knex, schedColumns, apptColumns) {
   var Orm = require('bookshelf').initialize(knex)
     , Db = {}
+    , emu = schedColumns.xattrs.type
     ;
 
   //console.log(schedColumns);
@@ -93,8 +94,11 @@ function init(knex, schedColumns, apptColumns) {
     tableName: 'schedules'
   , idAttribute: 'id'
   , hasTimestamps: ['createdAt', 'updatedAt']
+  , appointments: function () {
+      return this.hasMany(Db.Appointments, 'schedule_id');
+    }
   , format: function (attrs) {
-      if ('text' === schedColumns.xattrs.type) {
+      if ('text' === emu) {
         //attrs.xattrs = JSON.stringify(attrs.xattrs);
         attrs = zipXattrs('xattrs', toCamelCaseArr(Object.keys(schedColumns)), 'text')(attrs);
       } else {
@@ -140,14 +144,14 @@ function init(knex, schedColumns, apptColumns) {
   , schedule: function () {
       return this.belongsTo(Db.Schedules, 'schedule_id');
     }
-  , format: zipXattrs('xattrs', toCamelCaseArr(Object.keys(apptColumns)))
+  , format: zipXattrs('xattrs', toCamelCaseArr(Object.keys(apptColumns)), emu)
   , parse: inflateXattrs('xattrs')
   });
 
   Db.Meta = Orm.Model.extend({
     tableName: 'meta'
   , idAttribute: 'id'
-  , format: zipXattrs('xattrs', [])
+  , format: zipXattrs('xattrs', ['id'], emu)
   , parse: inflateXattrs('xattrs')
   });
 

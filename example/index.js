@@ -7,6 +7,7 @@ var knex = require('./knex-connector').knex
   , moment = require('moment')
   , forEachAsync = require('foreachasync').forEachAsync
   , Rrecur = require('rrecur').Rrecur
+  , Promise = require('es6-promise').Promise
   , p
   ;
 
@@ -45,8 +46,8 @@ function Rescheduler(Db, opts) {
   setInterval(function () {
     me._load();
   }, this._opts.interval);
-  me._load();
   */
+  me._load();
 }
 util.inherits(Rescheduler, EventEmitter);
 Rescheduler.create = Rescheduler;
@@ -56,35 +57,74 @@ p = Rescheduler.prototype;
 p._load = function () {
   var me = this
     , now = Date.now() // lastrun
-    , then = now + me._opts.interval
+    , then = now + me._opts.interval + (5 * 24 * 60 * 60 * 1000)
     //, triggerTime = moment().utc().startOf('day').hours(22).valueOf()
     , triggerTime = moment().utc().startOf('day').hours(18).minutes(30).valueOf()
     ;
 
   function loadWindow(meta) {
     // time for the big load
-    console.log("time to load lots of stuff");
-    me._Models.Schedules.where('next', '<', then).andWhere('next', '>=', meta.get('lastload')).fetchAll().then(function (schedules) {
-      forEachAsync(schedules, function (next, schedule) {
-        // Load the next 24-hour window for this event as appointments
-        console.log(schedule.id);
-        next();
-      }).then(function () {
-        loadAppointments(meta);
-      });
-    });
+    console.log("time to load lots of stuff", then, new Date(then).toISOString());
+    me._Models.Schedules.where('next', '<', new Date(then).toISOString()) //.andWhere('next', '>=', meta.get('lastload'))
+      .fetchAll({ withRelated: ['appointments'] }).then(function (_schedules) {
+        var schedules = _schedules.map(function (s) { return s; })
+          ;
+
+        return forEachAsync(schedules, function (next, schedule) {
+          var appts = schedule.related('appointments').map(function (a) { return a; })
+            ;
+
+          if (!appts.length) {
+            console.log('create appointment');
+            me._createAppointments(schedule).then(next);
+          } else {
+            forEachAsync(appts, function (n2, appt) {
+              // although appt.related('schedule') returns a blank object,
+              // it gets loaded again before the schedule is needed
+              appt.relations.schedule = schedule;
+              me._loadAppointment(appt).then(n2);
+            });
+          }
+          next();
+        });
+        /*
+        .then(function () {
+          return;
+          loadAppointments(meta);
+        });
+        */
+      }
+    );
   }
 
   function loadAppointments(meta) {
+    me._Models.Appointments.where('next', '<', new Date(then).toISOString()) //.andWhere('next', '>=', meta.get('lastload'))
+      .fetchAll({ withRelated: ['schedule'] }).then(function (_appointments) {
+        var appts = _appointments.map(function (a) { return a; })
+          ;
+
+        return forEachAsync(appts, function (n2, appt) {
+          me._loadAppointment(appt).then(n2);
+        });
+      }
+    );
+
     // check for events that will fire before the next interval and load them into memory,
     // unless they're already in memory and haven't finished yet
+    // TODO load current into memory
     meta.set('lastload', now);
     return meta.save();
   }
 
-  console.log('me._meta');
-  console.log(me._meta);
+  //console.log('me._meta');
+  //console.log(me._meta);
   me._meta.then(function (meta) {
+    //console.log('meta');
+    //console.log(meta);
+    //console.log(meta.toJSON());
+    loadWindow(meta);
+    return;
+
     console.log(meta.get('lastload'), then, triggerTime, triggerTime - meta.get('lastload'));
     // if we'll hit 10pm UTC before the next interval, reload the window
     if (meta.get('lastload') <= triggerTime && then > triggerTime) {
@@ -118,11 +158,8 @@ p._createAppointments = function (schedule, appt) {
 
   return appt.save().then(function () {
     if ((Date.now() - next.valueOf()) < me._opts.interval) {
-      me._loadAppointment(appt); // schedule.get('next')
+      return me._loadAppointment(appt); // schedule.get('next')
     }
-  }, function (err) {
-    console.error('appt save fail');
-    console.error(err);
   });
 };
 p._loadAppointment = function (appt) {
@@ -131,42 +168,51 @@ p._loadAppointment = function (appt) {
     ;
 
   if (Date.now() < appt.get('until').valueOf()) {
-    console.log('TODO: delete this appt and schedule');
-    return;
+    // TODO destroy stale
+    console.log('TODO: delete this appt and schedule next');
+    return appt.destroy();
   }
 
-  if (me._timers[appt.get('id')]) {
-    return;
-  }
+  return new Promise(function (resolve, reject) {
+    if (me._timers[appt.get('id')]) {
+      resolve();
+      return;
+    }
 
-  me._timers[appt.get('id')] = true;
+    me._timers[appt.get('id')] = true;
 
-  function emitEvent() {
-    console.log('TODO: load the next appointment for this schedule (or delete it)');
-    me._Models.Appointments.forge({ id: apptId }).fetch({ withRelated: ['schedule'] }).then(function (appt) {
-      var schedule = appt.related('schedule')
-        , next = getNext(appt.related('schedule'))
-        ;
+    function emitEvent() {
+      console.log('TODO: load the next appointment for this schedule (or delete it)');
+      me._Models.Appointments.forge({ id: apptId }).fetch({ withRelated: ['schedule'] }).then(function (appt) {
+        var schedule = appt.related('schedule')
+          , next = getNext(appt.related('schedule'))
+          ;
 
-      me.emit('appointment', appt.related('schedule').get('event'), appt, function () {
-        delete me._timers[appt.get('id')];
-        schedule.set('previous', appt.get('next'));
-        schedule.set('next', next);
+        function doneCb() {
+          delete me._timers[appt.get('id')];
+          schedule.set('previous', appt.get('next'));
+          schedule.set('next', next);
 
-        if (next) {
-          // TODO could maybe keep appt history, but recycling instead for now
-          appt.set('next', next);
-          // TODO some time delta appt.set('until', );
-          appt.save();
-        } else {
-          appt.destroy();
-          schedule.set('next', null);
-          schedule.save();
+          if (next) {
+            // TODO could maybe keep appt history, but recycling instead for now
+            appt.set('next', next);
+            // TODO some time delta appt.set('until', );
+            appt.save(resolve, reject);
+          } else {
+            appt.destroy().then(function () {
+              schedule.set('next', null);
+              schedule.save(resolve, reject);
+            });
+          }
         }
+
+        // TODO { appointment: appt }
+        me.emit('appointment', appt.related('schedule').get('event'), appt, doneCb);
       });
-    });
-  }
-  setTimeout(emitEvent, appt.get('next') - Date.now());
+    }
+
+    setTimeout(emitEvent, appt.get('next') - Date.now());
+  });
 };
 
 p.schedule = function (event, first, rrule) {

@@ -1,6 +1,6 @@
 {
   "name": "reschedule",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "\"A job / event scheduler for both one-time and recurring (RRULE-based) events\"",
   "main": "reschedule",
   "scripts": {
@@ -31,6 +31,7 @@
   "homepage": "https://github.com/coolaj86/node-reschedule",
   "dependencies": {
     "bookshelf": "^0.7.2",
+    "es6-promise": "^1.0.0",
     "foreachasync": "^3.0.0",
     "knex": "^0.6.15",
     "lodash": "^2.4.1",
