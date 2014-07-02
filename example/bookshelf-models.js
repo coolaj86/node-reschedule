@@ -117,7 +117,7 @@ function init(knex, schedColumns, apptColumns) {
           }
         }
       });
-      if ('text' === schedColumns.event.type) {
+      if (attrs.event && 'text' === schedColumns.event.type) {
         attrs.event = JSON.stringify(attrs.event);
       }
       return attrs;
@@ -130,7 +130,7 @@ function init(knex, schedColumns, apptColumns) {
       } else {
         attrs = inflateXattrs('xattrs')(attrs);
       }
-      if ('text' === schedColumns.event.type) {
+      if (attrs.event && 'text' === schedColumns.event.type) {
         attrs.event = JSON.parse(attrs.event);
       }
       return attrs;
@@ -144,7 +144,25 @@ function init(knex, schedColumns, apptColumns) {
   , schedule: function () {
       return this.belongsTo(Db.Schedules, 'schedule_id');
     }
-  , format: zipXattrs('xattrs', toCamelCaseArr(Object.keys(apptColumns)), emu)
+  , format: function (attrs) {
+      attrs = zipXattrs('xattrs', toCamelCaseArr(Object.keys(apptColumns)), emu)(attrs);
+
+      Object.keys(apptColumns).forEach(function (key) {
+        if ('datetime' === apptColumns[key].type) {
+          if (!attrs[key]) {
+            return;
+          }
+          if ('number' === typeof attrs[key]) {
+            attrs[key] = new Date(attrs[key]).toISOString();
+          }
+          if ('object' === typeof attrs[key]) {
+            attrs[key] = attrs[key].toISOString();
+          }
+        }
+      });
+
+      return attrs;
+    }
   , parse: inflateXattrs('xattrs')
   });
 
