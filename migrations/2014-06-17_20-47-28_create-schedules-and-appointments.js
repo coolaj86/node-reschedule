@@ -29,6 +29,7 @@ module.exports.create = function (knex) {
       t.timestamp('next').notNullable();
       t.timestamp('until').notNullable();
 
+      t.json('xattrs').notNullable().defaultTo(knex.raw("'{}'"));
       t.timestamps();
     });
   }).then(function () {

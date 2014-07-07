@@ -159,13 +159,8 @@ proto._createAppointments = function (schedule, appt) {
     , nexttime
     ;
 
-  console.log('################## create alarm');
-  console.log(json.rules);
   rrecur = Rrecur.create(json.rules, new Date(), false);
-  console.log(rrecur);
   nexttime = rrecur.next(true);
-  console.log(new Date().toISOString());
-  console.log(nexttime);
 
   if (!nexttime) {
     console.error('[appt][create] nothing next', schedule.id);
@@ -177,6 +172,8 @@ proto._createAppointments = function (schedule, appt) {
   appt.set('next', nexttime && new Date(nexttime).toISOString());
   appt.set('until', json.until && new Date(json.until).toISOString());
   appt.set('scheduleId', schedule.id);
+  appt.set('errorCount', 0); // xattrs hack
+  appt.set('dummy', true); // xattrs hack
   //appt.attach(schedule);
 
   return appt.save().then(function () {
