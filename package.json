@@ -1,6 +1,6 @@
 {
   "name": "reschedule",
-  "version": "0.5.0",
+  "version": "0.10.0",
   "description": "\"A job / event scheduler for both one-time and recurring (RRULE-based) events\"",
   "main": "reschedule",
   "scripts": {
