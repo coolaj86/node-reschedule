@@ -67,13 +67,6 @@ proto._load = function () {
     ;
 
   function loadWindow(meta) {
-    // time for the big load
-    console.info("[load] cycle is up. Reloading from db");
-    console.info("[load] getting everything with a 'next' before");
-    console.info("[load]", new Date(then).toISOString());
-    console.info("[load]", new Date(then).toString());
-    console.info("[load] or where next is null", "\n");
-
     me._Models.Schedules
       .query(function (qb) {
         qb
@@ -275,8 +268,6 @@ proto._loadAppointmentIntoMemory = function (appt, _schedule) {
 
     // If there are no more, destroy it
     if (!appt.get('next')) {
-      console.info("[complete] there is no next event for this schedule");
-      console.info(appt.toJSON());
       return me._getDoneCb(appt, schedule, nexttime)().then(resolve, reject);
     }
 
@@ -291,15 +282,14 @@ proto._loadAppointmentIntoMemory = function (appt, _schedule) {
     // If it's coming up soon, then load it into memory
     timeout = new Date(appt.get('next')).valueOf() - now;
     if (timeout < me._opts.interval) {
-      console.info("[hot] this will be ready to load soon");
       me._loadForRealz(appt.id, timeout);
     } else {
       console.warn(
-        "[cold] this event won't be ready for a while ("
+        "[WARN] this event won't be ready for a while ("
       + timeout / (60 * 60 * 1000)
       + " hours)"
       );
-      console.warn("[TODO] double check that cold events aren't due to db error");
+      console.warn("[WARN] double check that cold events aren't due to db error");
     }
 
     resolve();

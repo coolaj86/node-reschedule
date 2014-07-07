@@ -18,7 +18,7 @@ module.exports.create = function (knex) {
     t.json('xattrs').notNullable().defaultTo(knex.raw("'{}'"));
     t.timestamps();
   }).then(function () {
-    console.log('Created schedules');
+    console.log('[knex] Created schedules');
     
     return knex.schema.createTable('appointments', function (t) {
       t.increments('id').notNullable().primary();
@@ -33,7 +33,7 @@ module.exports.create = function (knex) {
       t.timestamps();
     });
   }).then(function () {
-    console.log('Created appointments');
+    console.log('[knex] Created appointments');
 
     return knex.schema.createTable('meta', function (t) {
       t.string('id', 255).notNullable();
@@ -42,7 +42,7 @@ module.exports.create = function (knex) {
       t.json('xattrs').notNullable().defaultTo(knex.raw("'{}'"));
     });
   }).then(function () {
-    console.log('Created meta');
+    console.log('[knex] Created meta');
 
     return knex('meta').insert({ id: 'meta', xattrs: '{ "lastload": 0, "counter": 0 }' });
   });
