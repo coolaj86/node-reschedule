@@ -10,6 +10,7 @@ reschedule.create(opts).then(function (Reschedule) {
     console.log('appointment');
     console.log('event');
     console.log(event);
+    console.log(appt);
     done();
   });
 

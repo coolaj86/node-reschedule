@@ -86,18 +86,13 @@ proto._load = function () {
         var schedules = _schedules.map(function (s) { return s; })
           ;
 
-        console.log('[upcoming]');
-        console.log(schedules);
-
         return forEachAsync(schedules, function (next, schedule) {
           var appts = schedule.related('appointments').map(function (a) { return a; })
             ;
 
           if (!appts.length) {
-            console.log('[load] NO APPOINTMENTS. Creating...');
             me._createAppointments(schedule).then(next);
           } else {
-            console.log('[load] Has appointments.');
             forEachAsync(appts, function (n2, appt) {
             //appts.forEach(function (appt) {
               // although appt.related('schedule') returns a blank object,
@@ -168,7 +163,6 @@ proto._createAppointments = function (schedule, appt) {
   }
 
   appt = appt || me._Models.Appointments.forge();
-  console.log('[appt] setting next to', nexttime);
   appt.set('next', nexttime && new Date(nexttime).toISOString());
   appt.set('until', json.until && new Date(json.until).toISOString());
   appt.set('scheduleId', schedule.id);
@@ -178,7 +172,6 @@ proto._createAppointments = function (schedule, appt) {
 
   return appt.save().then(function () {
     if ((Date.now() - new Date(nexttime).valueOf()) < me._opts.interval) {
-      //console.log('[appt] saved');
       me._loadAppointmentIntoMemory(appt, schedule); // schedule.get('next')
     }
 
@@ -227,9 +220,6 @@ proto._getDoneCb = function (appt, schedule, nexttime) {
       appt.set('next', isoNexttime);
       // TODO some time delta appt.set('until', );
       return appt.save().then(function () {
-        console.log('[done] setting up for next time');
-        console.log('[done] lasttime', lasttime);
-        console.log('[done] nexttime', nexttime);
         schedule.set('next', isoNexttime);
         return schedule.save();
       });
@@ -249,11 +239,8 @@ proto._loadForRealz = function (apptId, timeout) {
 
   me._timers[apptId] = true; 
 
-  console.log('[ready]', 'will fire event in', timeout + 'ms');
   setTimeout(function () {
-    console.log('[aim]');
     me._Models.Appointments.forge({ id: apptId }).fetch({ withRelated: ['schedule'] }).then(function (appt2) {
-      console.log("[fire]");
       var schedule = appt2.related('schedule')
         , nexttime = getNext(schedule)
         , details = { appointment: appt2.toJSON(), next: nexttime, previous: appt2.get('next') }
@@ -269,7 +256,6 @@ proto._loadForRealz = function (apptId, timeout) {
   return null;
 };
 proto._loadAppointmentIntoMemory = function (appt, _schedule) {
-  console.log('[test] load (if ready) or remove (if stale) or let sit');
   var me = this
     , schedule = _schedule || appt.related('schedule')
     , nexttime = getNext(schedule)
@@ -283,7 +269,6 @@ proto._loadAppointmentIntoMemory = function (appt, _schedule) {
 
     // If it's already in the queue, don't worry about it
     if (me._timers[appt.get('id')]) {
-      console.log('[loaded] this event is already loaded and waiting to fire');
       resolve();
       return;
     }
@@ -329,30 +314,7 @@ proto.schedule = function (event, rules, opts) {
     , rrecur
     ;
 
-  console.log('rules before Rrecur.create');
-  console.log(rules);
-
   rrecur = Rrecur.create(rules, new Date());
-  console.log(rules);
-  /*
-  var i
-    ;
-  rrecur = Rrecur.create(rules, new Date());
-  console.log('CREATING SCHEDULE');
-  i = 0;
-  while (i < 10) {
-    i += 1;
-    console.log(rrecur.next());
-  }
-
-  rrecur = Rrecur.create(rules, new Date(Date.now() + (48 * 60 * 60 * 1000)));
-  console.log('CREATING SCHEDULE');
-  i = 0;
-  while (i < 10) {
-    i += 1;
-    console.log(rrecur.next());
-  }
-  */
 
   if (!rules.rrule) {
     rules.rrule = {
