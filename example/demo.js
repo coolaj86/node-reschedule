@@ -1,9 +1,11 @@
 'use strict';
 
-var reschedule = require('./index')
+var reschedule = require('../index')
+  , path = require('path')
+  , opts = { filename: path.join(__dirname, "reschedule.sqlite3") }
   ;
 
-reschedule.create().then(function (Reschedule) {
+reschedule.create(opts).then(function (Reschedule) {
   Reschedule.on('appointment', function (event, appt, done) {
     console.log('appointment');
     console.log('event');

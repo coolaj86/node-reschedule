@@ -1,13 +1,13 @@
 'use strict';
 
-var knex = require('./knex-connector').knex
-  , EventEmitter = require('events').EventEmitter
+var EventEmitter = require('events').EventEmitter
   , util = require('util')
-  , Models = require('./bookshelf-models')
+  , Models = require('./lib/bookshelf-models')
   , moment = require('moment')
   , forEachAsync = require('foreachasync').forEachAsync
   , Rrecur = require('rrecur').Rrecur
   , Promise = require('es6-promise').Promise
+  , UUID = require('node-uuid')
   , proto
   ;
 
@@ -42,7 +42,7 @@ function Rescheduler(Db, opts) {
   me._timers = {};
   me._opts = opts;
   // TODO check every 14 minutes for the next 15 minutes
-  me._opts.interval = me._opts.interval || 10 * 1000; // 15 * 60 * 1000;
+  me._opts.interval = me._opts.interval || 7 * 60 * 1000; // 15 * 60 * 1000;
   me._opts.window = me._opts.window || 24 * 60 * 60 * 1000;
   me._Models = Db;
 
@@ -159,8 +159,13 @@ proto._createAppointments = function (schedule, appt) {
     , nexttime
     ;
 
+  console.log('################## create alarm');
+  console.log(json.rules);
   rrecur = Rrecur.create(json.rules, new Date(), false);
+  console.log(rrecur);
   nexttime = rrecur.next(true);
+  console.log(new Date().toISOString());
+  console.log(nexttime);
 
   if (!nexttime) {
     console.error('[appt][create] nothing next', schedule.id);
@@ -176,7 +181,7 @@ proto._createAppointments = function (schedule, appt) {
 
   return appt.save().then(function () {
     if ((Date.now() - new Date(nexttime).valueOf()) < me._opts.interval) {
-      console.log('[appt] saved');
+      //console.log('[appt] saved');
       me._loadAppointmentIntoMemory(appt, schedule); // schedule.get('next')
     }
 
@@ -187,22 +192,48 @@ proto._getDoneCb = function (appt, schedule, nexttime) {
   var me = this
     ;
 
-  function doneCb() {
-    var lasttime = appt.get('next')
-      ;
+  function doneCb(opts) {
+    // TODO add another status callback
 
     delete me._timers[appt.get('id')];
-    schedule.set('previous', appt.get('next') && new Date(appt.get('next')).toISOString());
+    opts = opts || {};
 
-    if (nexttime) {
+    var lasttime = appt.get('next')
+      , isoNexttime
+      ;
+
+    if (opts.error) {
+      // try again in a little bit
+      appt.set('errorCount', (parseInt(appt.get('errorCount'), 10) || 0) + 1);
+      // TODO intervals 5, 15, 30, 60, etc
+      opts.snooze = Math.pow(2, appt.get('errorCount') - 1) * (15 * 60 * 1000);
+    } else {
+      appt.set('errorCount', 0);
+    }
+
+    opts.snooze = parseInt(opts.snooze, 10) || 0;
+
+    if (opts.snooze > 0) {
+      opts.reschedule = Date.now() + opts.snooze;
+      // there not a next event in the schedule, or that next event is further away
+      if (!nexttime || opts.reschedule < new Date(nexttime).valueOf()) {
+        isoNexttime = nexttime = new Date(opts.reschedule).toISOString();
+      }
+    } else {
+      schedule.set('previous', appt.get('next') && new Date(appt.get('next')).toISOString());
+    }
+
+    isoNexttime = isoNexttime || (nexttime && new Date(nexttime).toISOString());
+
+    if (isoNexttime) {
       // TODO could maybe keep appt history, but recycling instead for now
-      appt.set('next', nexttime && new Date(nexttime).toISOString());
+      appt.set('next', isoNexttime);
       // TODO some time delta appt.set('until', );
       return appt.save().then(function () {
         console.log('[done] setting up for next time');
-        console.log('[done]', lasttime);
-        console.log('[done]', nexttime);
-        schedule.set('next', new Date(nexttime).toISOString());
+        console.log('[done] lasttime', lasttime);
+        console.log('[done] nexttime', nexttime);
+        schedule.set('next', isoNexttime);
         return schedule.save();
       });
     } else {
@@ -301,7 +332,11 @@ proto.schedule = function (event, rules, opts) {
     , rrecur
     ;
 
+  console.log('rules before Rrecur.create');
+  console.log(rules);
+
   rrecur = Rrecur.create(rules, new Date());
+  console.log(rules);
   /*
   var i
     ;
@@ -332,6 +367,7 @@ proto.schedule = function (event, rules, opts) {
 
   schedule = {
     event: event
+  , uuid: UUID.v4()
   , dtstart: rules.dtstart.utc
   , rules: rules
   //, dtstart: rules.dtstart
@@ -349,7 +385,7 @@ proto.schedule = function (event, rules, opts) {
 
   return me._Models.Schedules.forge().on('query', logQuery).save(schedule).then(function (record) {
     return me._createAppointments(record).then(function () {
-      return record;
+      return { id: record.id, uuid: record.get('uuid'), next: record.get('next') };
     });
   });
 };
@@ -367,15 +403,26 @@ proto.resume = function (id) {
 */
 proto.unschedule = function (id, schedule) {
   var me = this
+    , fields = {}
     ;
+
+  if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id)) {
+    fields.uuid = id;
+  } else {
+    fields.id = id;
+  }
 
   function destroy(schedule) {
     var scheduleObj = schedule.toJSON()
       ;
 
-    return schedule.destroy().then(function () {
-      me.emit('unschedule', scheduleObj);
-      return scheduleObj;
+    // TODO
+    // https://github.com/tgriesser/bookshelf/issues/135
+    return schedule.related('appointments').invokeThen('destroy').then(function () {
+      return schedule.destroy().then(function () {
+        me.emit('unschedule', scheduleObj);
+        return scheduleObj;
+      });
     });
   }
 
@@ -383,9 +430,11 @@ proto.unschedule = function (id, schedule) {
     return destroy(schedule);
   }
 
-  return this._Models.Schedules.forge({ id: id }).on('query', logQuery).fetch().then(function (schedule) {
-    return destroy(schedule);
-  });
+  return this._Models.Schedules.forge(fields).on('query', logQuery)
+    .fetch({ withRelated: 'appointments' })
+    .then(function (schedule) {
+      return destroy(schedule);
+    });
 };
 /*
 proto.postpone = function (id, date) {
@@ -395,8 +444,17 @@ proto.postpone = function (id, date) {
 };
 */
 
-module.exports.create = function () {
+module.exports.create = function (opts) {
+  opts = opts || {};
+
+  var knex = opts.knex
+    ;
+
+  if (!knex) {
+    knex = require('./lib/knex-connector').create(opts.filename);
+  }
+
   return Models.create(knex).then(function (Db) {
-    return Rescheduler.create(Db, {});
+    return Rescheduler.create(Db, opts);
   });
 };
