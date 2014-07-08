@@ -28,7 +28,7 @@ One-time Events
 
 * `create(store, opts)`
   * `store` is a storage container with `each()`, `get()`, `set()`, and `save()`
-  * `opts.preserveAll` if an event doesn't fire before the next occurence it would generally be skipped. This option ensures that the event fires as many times as it is in the queue.
+  * `opts.preserveAll` if an event doesn't fire before the next occurrence it would generally be skipped. This option ensures that the event fires as many times as it is in the queue.
 
 `.on(eventHandler)`
 
