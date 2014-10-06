@@ -4,7 +4,7 @@ var memStore = require('./lib/mem-store')
   ,   rrecur = require('rrecur')
   ;
 
-function Rescheduler(options) {
+module.exports = function Rescheduler(options) {
   if (!(this instanceof Rescheduler)) {
     return new Rescheduler(options);
   }
@@ -114,5 +114,3 @@ Rescheduler.prototype._load = function() {
 Rescheduler.prototype.schedule = function(event, rules, options) {
   // TODO
 };
-
-module.exports = Rescheduler;
