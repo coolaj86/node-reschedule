@@ -2,6 +2,7 @@
 
 var memStore = require('./lib/mem-store')
   ,   rrecur = require('rrecur')
+  ,     UUID = require('uuid')
   ;
 
 module.exports = function Rescheduler(options) {
@@ -50,6 +51,7 @@ module.exports = function Rescheduler(options) {
   setTimeout(load, 0);
 }
 
+// this method needs to be robust.
 Rescheduler.prototype._load = function() {
   var store = this.store
     , error = this.handleError
@@ -111,6 +113,38 @@ Rescheduler.prototype._load = function() {
   }
 };
 
-Rescheduler.prototype.schedule = function(event, rules, options) {
-  // TODO
+Rescheduler.prototype.schedule = function(event, rules, cb) {
+  var irecur = rrecur.create(rules, new Date())
+    , leaway = 72 * 60 * 60 * 1000
+    ;
+
+  if (rules.rrule) {
+    var rrule = rules.rrule;
+  } else {
+    var rrule = {
+      until: new Date(new Date(rules.dtstart.utc).valueOf() + leaway).toISOString()
+    , count: 1
+    , freq: 'yearly'
+    };
+  }
+
+  var schedule = {
+    event: event
+  , uuid: UUID.v4()
+  , dstart: rules.dstart.utc
+  , rules: rules
+  , rrule: Rrecur.stringify(rrule)
+  , dummy: true
+  };
+
+  var self = this;
+  if ((Date.now() - new Date(rules.dstart.utc).valueOf()) < this._options.interval) {
+    setTimeout(function() {
+      self._load();
+    }, 0);
+  }
+
+  // returning here because the store might return a promise instead of using
+  // the callback, but there is no need to catch the promise case.
+  return this.store.set(schedule.uuid, schedule, cb);
 };
