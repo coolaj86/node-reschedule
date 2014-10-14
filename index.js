@@ -148,3 +148,7 @@ Rescheduler.prototype.schedule = function(event, rules, cb) {
   // the callback, but there is no need to catch the promise case.
   return this.store.set(schedule.uuid, schedule, cb);
 };
+
+Rescheduler.prototype.unschedule = function(id, cb) {
+  return this.store.destroy(id, cb);
+};
