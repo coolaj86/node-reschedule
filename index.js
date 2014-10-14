@@ -1,11 +1,11 @@
 'use strict';
 
 var memStore = require('./lib/mem-store')
-  ,   rrecur = require('rrecur')
+  ,   rrecur = require('rrecur').Rrecur
   ,     UUID = require('uuid')
   ;
 
-module.exports = function Rescheduler(options) {
+var Rescheduler = module.exports = function(options) {
   if (!(this instanceof Rescheduler)) {
     return new Rescheduler(options);
   }
@@ -43,12 +43,14 @@ module.exports = function Rescheduler(options) {
   this._options = options;
   this._timers = [];
 
-  var self = this;
-  this._loadInterval = setInterval(function load() {
-    self._load();
-  }, options.interval);
+  this._loadInterval = setInterval(load, options.interval);
 
   setTimeout(load, 0);
+
+  var self = this;
+  function load() {
+    self._load();
+  }
 }
 
 // this method needs to be robust.
@@ -122,7 +124,7 @@ Rescheduler.prototype.schedule = function(event, rules, cb) {
     var rrule = rules.rrule;
   } else {
     var rrule = {
-      until: new Date(new Date(rules.dtstart.utc).valueOf() + leaway).toISOString()
+      until: new Date(+new Date(rules.dtstart.utc) + leaway).toISOString()
     , count: 1
     , freq: 'yearly'
     };
@@ -138,7 +140,7 @@ Rescheduler.prototype.schedule = function(event, rules, cb) {
   };
 
   var self = this;
-  if ((Date.now() - new Date(rules.dstart.utc).valueOf()) < this._options.interval) {
+  if ((Date.now() - +new Date(rules.dstart.utc)) < this._options.interval) {
     setTimeout(function() {
       self._load();
     }, 0);
