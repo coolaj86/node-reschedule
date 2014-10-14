@@ -20,15 +20,9 @@ var Rescheduler = module.exports = function(options) {
   }
 
   if (null == options.interval) {
-    this.interval = Rescheduler.defaults.interval;
+    this.interval = 7 * 60 * 1000;
   } else {
     this.interval = options.interval;
-  }
-
-  if (null == options.window) {
-    this.window = Rescheduler.defaults.window;
-  } else {
-    this.window = options.window;
   }
 
   this._options = options;
@@ -43,16 +37,6 @@ var Rescheduler = module.exports = function(options) {
     self._load();
   }
 }
-
-Rescheduler.defaults = {
-  // default interval: 7 minutes
-  interval: 7 * 60 * 1000,
-
-  // default sampling window: 24 hours
-  window: 24 * 60 * 60 * 1000,
-
-  error: function(err) { throw err; }
-};
 
 Rescheduler.prototype = Object.create(Emitter.prototype);
 
