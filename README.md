@@ -13,38 +13,35 @@ DRAFT / IN PROGRESS
 * Fire all events that aren't too late
 * Remove expired schedules
 
-Triple Buffer
--------------
+Usage
+=====
 
-* Permanent: All recurring events and events that will not take place by 11:59pm today
-* Temporary: All events happening by 11:59pm UTC today (and tomorrow)
-  * At 10:00pm UTC all events for the following day will be queued up
-* In-memory: Events that will happen within the next 15 minutes
+```javascript
+var Rrule = require('rrule').RRule;
 
-When an event is handled it may be removed from permanent.
+var scheduler = require('reschedule')({
+  store: new myCustomStore(), // uses an in-memory store by default
+  interval: 7 * 60 * 1000, // interval in ms to make batch loads for events
+});
 
-One-time Events
-===============
+scheduler.schedule({
+  title: 'First Event' // any old JSON data that will be emitted with the event
+}, { // this can be any arbitrary options for RRule or just an RRule string
+  freq: Rrule.SECONDLY,
+  dtstart: new Date()
+}, function(err, id) { // promises are supported too, depending on your store.
+  if (err) throw err;
 
-* `create(store, opts)`
-  * `store` is a storage container with `each()`, `get()`, `set()`, and `save()`
-  * `opts.preserveAll` if an event doesn't fire before the next occurrence it would generally be skipped. This option ensures that the event fires as many times as it is in the queue.
+  console.log('First Event scheduled');
 
-`.on(eventHandler)`
+  var now = Date.now()
 
-  * `eventHandler` a callback such as `function (event, done) {}`
-    * `done` is a callback that will mark the event as complete.
-      * You may return an ES6 Promise in place of calling `done`.
+  scheduler.on('event', function(time, data) {
+    console.log(data.title + ' fired at ' + time);
 
-`.once(event, [dtstart], [until])`
-
-  * `event`: A JSON object of your own make.
-  * `dtstart`: A UTC timestamp describing when this event should be fired. Defaults to `Date.now()`.
-  * `until`: If the system is unable to fire the event by `until`, it will not be fired at all. Defaults to 72 hours from `Date.now()`
-
-`.recurring(event, rrule, [dtstart])`
-
-  * `event`: A JSON object of your own make.
-  * `rrule`: either a JSON object or RFC RRULE string.
-  * `dtstart`: A UTC timestamp describing when this schedule should begin. Defaults to `Date.now()`.
-    * NOTE: For biweekly weekly schedules and such you should specify DTSTART to be the first occurrence of your schedule, not today's date. Otherwise you may get events on the opposite day from what you expect.
+    if (+time > (now + 5000)) {
+      scheduler.unschedule(id);
+    }
+  });
+});
+```
