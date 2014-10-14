@@ -1,6 +1,7 @@
 'use strict';
 
-var memStore = require('./lib/mem-store')
+var  Emitter = require('events').EventEmitter
+  , memStore = require('./lib/mem-store')
   ,   rrecur = require('rrecur').Rrecur
   ,     UUID = require('uuid')
   ;
@@ -59,6 +60,8 @@ Rescheduler.defaults = {
   error: function(err) { throw err; }
 };
 
+Rescheduler.prototype = Object.create(Emitter.prototype);
+
 // this method needs to be robust.
 Rescheduler.prototype._load = function() {
   var store = this.store
@@ -107,7 +110,7 @@ Rescheduler.prototype._load = function() {
           return;
         }
 
-        self.emit(data);
+        self.emit('event', data);
       });
 
       if (promise && typeof promse.then === 'function') {
