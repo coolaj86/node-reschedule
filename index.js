@@ -2,7 +2,7 @@
 
 var  Emitter = require('events').EventEmitter
   , memStore = require('./lib/mem-store')
-  ,   rrecur = require('rrecur').Rrecur
+  ,    Rrule = require('rrule').RRule
   ,     UUID = require('uuid')
   ;
 
@@ -29,12 +29,6 @@ var Rescheduler = module.exports = function(options) {
     this.window = Rescheduler.defaults.window;
   } else {
     this.window = options.window;
-  }
-
-  if (null == options.error) {
-    this.handleError = Rescheduler.defaults.error;
-  } else {
-    this.handleError = options.error;
   }
 
   this._options = options;
@@ -64,102 +58,74 @@ Rescheduler.prototype = Object.create(Emitter.prototype);
 
 // this method needs to be robust.
 Rescheduler.prototype._load = function() {
-  var store = this.store
-    , error = this.handleError
-    , then = Date.now() + this.interval
+  var  now = new Date()
+    , then = new Date(+now + this.interval)
     , self = this
     ;
 
-  var promise =
-      store.findAllWhereDateLessThan(then, function loadEvents(err, events) {
-    if (err) {
-      error(err);
-      return;
-    }
+  var promise = this.store.between(now, then, function getEvents(err, events) {
+    if (err) return console.error(err.stack);
 
-    // cancel any buffered events
-    for (var i = 0, l = self._timers.length; i < l; i++) {
-      clearTimeout(self._timers[i]);
-    }
+    self._timers.forEach(function(timer) {
+      clearTimeout(timer);
+    });
 
     self._timers = [];
 
-    for (i = 0, l = events.length; i < l; i++) {
-      loadForRealz(events[i]);
-    }
+    events.forEach(function(event) {
+      self._timers.push(setTimeout(function() {
+        self.emit('event', event.time, event.data);
+      }, +event.time - now));
+    });
   });
 
-
-  if (promise && typeof promise.then === 'function') {
-    promise.then(function(events) {
-      loadEvents(null, events);
-    }).catch(function(err) {
-      loadEvents(err);
-    });
-  }
-
-  function loadForRealz(event) {
-    var now = Date.now()
-      , timeout = +new Date(event.next) - now
-      ;
-
-    self._timers.push(setTimeout(function() {
-      var promise = self.store.get(event.id, function emitEvent(err, data) {
-        if (err) {
-          self.error(err);
-          return;
-        }
-
-        self.emit('event', data);
-      });
-
-      if (promise && typeof promse.then === 'function') {
-        promise.then(function(data) {
-          emitEvent(null, data);
-        }).catch(function(err) {
-          emitEvent(err);
-        });
-      }
-    }, timeout));
+  if (promise && 'function' === typeof promise.then) {
+    promise.then(function(schedules) {
+      handleSchedules(null, schedules);
+    }).error(handleSchedules);
   }
 };
 
-Rescheduler.prototype.schedule = function(event, rules, cb) {
-  var irecur = rrecur.create(rules, new Date())
-    , leaway = 72 * 60 * 60 * 1000
-    ;
-
-  if (rules.rrule) {
-    var rrule = rules.rrule;
-  } else {
-    var rrule = {
-      until: new Date(+new Date(rules.dtstart.utc) + leaway).toISOString()
-    , count: 1
-    , freq: 'yearly'
-    };
+Rescheduler.prototype.schedule = function(event, rrule, cb) {
+  if ('string' !== typeof rrule) {
+    rrule = Rrule.optionsToString(rrule);
   }
 
   var schedule = {
-    event: event
-  , uuid: UUID.v4()
-  , dstart: rules.dstart.utc
-  , rules: rules
-  , rrule: Rrecur.stringify(rrule)
-  , dummy: true
+    data: event,
+    rrule: rrule,
+    uuid: UUID.v4()
   };
 
   var self = this;
-  if ((Date.now() - +new Date(rules.dstart.utc)) < this._options.interval) {
-    setTimeout(function() {
-      self._load();
-    }, 0);
-  }
+  var promise = this.store.set(schedule, function(err) {
+    if (err) return cb(err);
+    cb();
 
-  // returning here because the store might return a promise instead of using
-  // the callback, but there is no need to catch the promise case.
-  return this.store.set(schedule.uuid, schedule, cb);
+    process.nextTick(function() {
+      self._load()
+    });
+  });
+
+  if (promise && 'function' === typeof promise.then) {
+    return promise.tap(function() {
+      self._load();
+    });
+  }
 };
 
 Rescheduler.prototype.unschedule = function(id, cb) {
-  return this.store.destroy(id, cb);
+  var self = this;
+  var promise = this.store.destroy(id, function(err) {
+    if (err) return cb(err);
+    cb && cb();
+
+    self._load();
+  });
+
+  if (promise && 'function' === typeof promise.then) {
+    return promise.tap(function() {
+      self._load();
+    });
+  }
 };
